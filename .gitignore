@@ -1,0 +1,7 @@
+# Ignore virtual environment folder
+venv/
+
+# Ignore media files
+after.mp4
+before.mp4
+istockphoto-497021621-612x612.jpg
