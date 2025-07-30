@@ -128,11 +128,13 @@ def compute_bikefit_angles(landmarks, w, h, args):
     angles["Knee Angle"] = knee_angle  # Compute the opposite angle
     joint_coords["Knee Angle"] = (a_knee, b_knee, c_knee)
 
-    # Hip Angle
+    # Hip Angle (shoulder, hip, and vertical line below hip)
     a_hip = get_coords("{}_SHOULDER".format(side))
     b_hip = get_coords("{}_HIP".format(side))
-    c_hip = get_coords("{}_KNEE".format(side))
-    angles["Hip Angle"] = calculate_angle(a_hip, b_hip, c_hip)
+    # c_hip: vertical point below hip (same x, y+offset)
+    vertical_offset = 100  # pixels downward; adjust as needed
+    c_hip = np.array([b_hip[0], b_hip[1] + vertical_offset])
+    angles["Hip Angle"] = 180 - calculate_angle(a_hip, b_hip, c_hip)
     joint_coords["Hip Angle"] = (a_hip, b_hip, c_hip)
 
     # Shoulder Angle
@@ -460,7 +462,11 @@ elif args.source == "video":
     cv2.destroyAllWindows()
 
 elif args.source == "camera":
+    import time
     cap = cv2.VideoCapture(0)
+    angle_stats = {}
+    last_reset_time = time.time()
+    reset_interval = 30  # seconds
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -468,24 +474,53 @@ elif args.source == "camera":
 
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = pose.process(img_rgb)
-
         if results.pose_landmarks:
+            overlay = frame.copy()
+            # Draw solid rectangle over full image
+            cv2.rectangle(
+                overlay, (0, 0), (frame.shape[1], frame.shape[0]), (50, 50, 50), -1
+            )
+            # Blend full frame
+            global_alpha = 0.6
+            cv2.addWeighted(
+                overlay, global_alpha, frame, 1 - global_alpha, 0, frame
+            )
+            # Draw landmarks and selected joints
+            filtered_landmarks = create_filtered_landmarks(
+                results.pose_landmarks.landmark, args.joints
+            )
             mp_draw.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
+                frame, filtered_landmarks, mp_pose.POSE_CONNECTIONS
             )
-            draw_selected_joints(frame, results.pose_landmarks.landmark, args.joints)
-
+            # Compute and display angles table
             h, w, _ = frame.shape
-            head_tilt_angle = compute_head_tilt(results.pose_landmarks.landmark, w, h)
-            cv2.putText(
-                frame,
-                f"Head Tilt: {head_tilt_angle:.1f} deg",
-                (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
-                (0, 255, 255),
-                2,
+            angles, joint_coords = compute_bikefit_angles(
+                filtered_landmarks.landmark, w, h, args
             )
+            for angle_name, angle_value in angles.items():
+                # Skip Head Tilt for arc drawing
+                if angle_name not in angle_stats:
+                    angle_stats[angle_name] = {
+                        "min": angle_value,
+                        "max": angle_value,
+                    }
+                else:
+                    angle_stats[angle_name]["min"] = min(
+                        angle_stats[angle_name]["min"], angle_value
+                    )
+                    angle_stats[angle_name]["max"] = max(
+                        angle_stats[angle_name]["max"], angle_value
+                    )
+                if angle_name == "Head Tilt":
+                    continue
+                a, b, c = joint_coords[angle_name]
+                draw_angle_arc(frame, a, b, c, angle_value)
+            draw_angles_table(frame, angles, angle_stats)
+
+        # Reset min/max every 30 seconds
+        if time.time() - last_reset_time > reset_interval:
+            angle_stats = {}
+            last_reset_time = time.time()
 
         cv2.imshow("Bike Fit Pose", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
