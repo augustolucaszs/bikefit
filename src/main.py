@@ -52,6 +52,12 @@ parser.add_argument(
     default=["left_hip", "left_knee", "left_ankle"],
     help="Joints to display. Use 'right' for all right-side joints or 'left' for all left-side joints.",
 )
+parser.add_argument(
+    "-camera",
+    type=int,
+    default=0,
+    help="Camera device index (default: 0). Use 1 for the second camera, etc.",
+)
 
 args = parser.parse_args()
 
