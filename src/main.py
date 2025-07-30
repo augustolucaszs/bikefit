@@ -1,3 +1,4 @@
+
 import argparse
 import cv2
 import mediapipe as mp
@@ -5,6 +6,7 @@ import numpy as np
 from utils import calculate_angle
 import sys
 from mediapipe.framework.formats import landmark_pb2
+import math
 
 
 # Pose setup
@@ -514,7 +516,8 @@ elif args.source == "camera":
                 if angle_name == "Head Tilt":
                     continue
                 a, b, c = joint_coords[angle_name]
-                draw_angle_arc(frame, a, b, c, angle_value)
+                if not math.isnan(angle_value):
+                    draw_angle_arc(frame, a, b, c, angle_value)
             draw_angles_table(frame, angles, angle_stats)
 
         # Reset min/max every 30 seconds
