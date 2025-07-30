@@ -7,6 +7,7 @@ import sys
 from mediapipe.framework.formats import landmark_pb2
 import math
 import collections
+import time
 
 
 # Pose setup
@@ -804,12 +805,38 @@ elif args.source == "camera":
     import ctypes
     import collections
 
+    # List available cameras (try indices 0-9)
+    print("Procurando câmeras disponíveis...")
+    available_cameras = []
+    for idx in range(10):
+        cap_test = cv2.VideoCapture(idx)
+        time.sleep(1)  # Wait for camera to initialize
+        if cap_test.isOpened():
+            print(f"Câmera encontrada: índice {idx}")
+            available_cameras.append(idx)
+            cap_test.release()
+    if not available_cameras:
+        print("Nenhuma câmera encontrada.")
+        sys.exit(1)
+    # Prompt user to select camera
+    while True:
+        try:
+            selected_idx = int(
+                input(f"Selecione o índice da câmera {available_cameras}: ")
+            )
+            if selected_idx in available_cameras:
+                break
+            else:
+                print("Índice inválido. Tente novamente.")
+        except ValueError:
+            print("Entrada inválida. Digite um número.")
+
     # Get screen resolution (Windows only)
     user32 = ctypes.windll.user32
     screen_width = user32.GetSystemMetrics(0)
     screen_height = user32.GetSystemMetrics(1)
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(selected_idx)
     angle_stats = {}
     last_reset_time = time.time()
     reset_interval = 30  # seconds
@@ -891,7 +918,7 @@ elif args.source == "camera":
                     4,
                 )
                 cv2.imshow(window_name, display_frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                if cv2.waitKey(1) & cv2.EVENT_LBUTTONDOWN:
                     break
                 ret, frame = cap.read()
                 continue
